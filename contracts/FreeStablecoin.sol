@@ -156,7 +156,7 @@ contract FreeStablecoin is ERC20, Ownable {
 
   // GOVERNANCE
 
-  function changeBurnFeeBps(uint _burnFeeBps) public onlyOwner returns(bool) {
+  function changeBurnFee(uint _burnFeeBps) public onlyOwner returns(bool) {
     burnFeeBps = _burnFeeBps;
     emit BurnFeeChange(_msgSender(), _burnFeeBps);
     return true;

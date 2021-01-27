@@ -28,30 +28,6 @@ contract("FreeStablecoin", accounts => {
     instance = await FreeStablecoin.new(name, symbol);
   });
 
-  describe("Check basic ERC20 variables", () => {
-
-    it("has the correct name (" + name + ")", async () => {
-      const _name = await instance.name();
-      assert.equal(_name, name);
-    });
-
-    it("has the correct symbol (" + symbol + ")", async () => {
-      const _symbol = await instance.symbol();
-      assert.equal(_symbol, symbol);
-    });
-
-    it("has 18 decimal places", async () => {
-      const decimals = await instance.decimals();
-      assert.equal(decimals, 18);
-    });
-
-    it("has 0 current total supply", async () => {
-      const totalSupply = await instance.totalSupply();
-      assert.equal(totalSupply, 0);
-    });
-
-  });
-
   describe("Minting and burning", () => {
     let ethValue = 1;
     let ethPrice = 500;
@@ -213,11 +189,10 @@ contract("FreeStablecoin", accounts => {
       assert.approximately(
         Number(ethBalanceBefore)+Number(collateralAmountBefore)-(Number(collateralAmountBefore)*0.01), // 0.01 is burn fee
         Number(ethBalanceAfter),
-        Number(ether(0.0003)) // difference due to gas cost
+        Number(ether(0.003)) // difference due to gas cost
       );
     });
 
-    /*
     it("allows sender to burn stablecoins to benefit another user (beneficiary)", async () => {
       // sender needs to mint some frEUR because it doesn't have any right now
       const mint = await instance.mintStablecoin({
@@ -229,16 +204,18 @@ contract("FreeStablecoin", accounts => {
 
       const ethBalanceBeneficiaryBefore = await web3.eth.getBalance(beneficiary);
 
+      const collateralAmountBefore = await instance.getCollateralAmount(beneficiary);
+      assert.equal(Number(collateralAmountBefore), ether(1));
+
       const stablecoinBalanceBefore0 = await instance.balanceOf(sender);
-      //console.log(Number(stablecoinBalanceBefore0));
-      assert.equal(stablecoinBalanceBefore0, ether(250));
+      assert.equal(Number(stablecoinBalanceBefore0), Number(ether(250/collRatio))); // 208.33 frEUR
 
       const stablecoinBalanceBefore1 = await instance.balanceOf(beneficiary);
-      assert.equal(stablecoinBalanceBefore1, ether(500));
+      assert.equal(Number(stablecoinBalanceBefore1), ether(500/collRatio)); // 416.67 frEUR
 
-      let stablecoinsToBurn = ether(167);
+      let stablecoinsToBurn = String(Number(stablecoinBalanceBefore1)/3); // burn one third of the beneficiaries debt
       
-      // account 0 burns their stablecoin to benefit account 1
+      // sender burns their stablecoin to benefit beneficiary
       const burn = await instance.burnStablecoinFor(stablecoinsToBurn, beneficiary, {
         from: sender
       });
@@ -252,15 +229,19 @@ contract("FreeStablecoin", accounts => {
         value: stablecoinsToBurn
       });
 
-      const collateralAmount = await instance.getCollateralAmount(beneficiary);
-      assert.equal(collateralAmount, ether(0.67));
+      const collateralAmountAfter = await instance.getCollateralAmount(beneficiary);
+      assert.equal(Number(collateralAmountAfter), ether(0.67)); // 33% less collateral (one third)
 
       const debtAmount = await instance.getDebtAmount(beneficiary);
-      assert.equal(debtAmount, ether(ethValue*ethPrice)-stablecoinsToBurn);
+      assert.equal(debtAmount, ether(ethValue*ethPrice/collRatio)-stablecoinsToBurn);
 
       // stablecoin balance of the person that burned the tokens (sender)
       const stablecoinBalanceAfter0 = await instance.balanceOf(sender);
-      assert.equal(stablecoinBalanceAfter0, ether(250)-stablecoinsToBurn);
+      assert.approximately(
+        Number(stablecoinBalanceAfter0), 
+        Number(stablecoinBalanceBefore0)-Number(stablecoinsToBurn),
+        Number(ether(0.000001)) // rounding error
+        );
 
       let burnFee = ether(0.0033);
 
@@ -281,26 +262,29 @@ contract("FreeStablecoin", accounts => {
       // sender attempts to reduce debt of the beneficiary
       // the problem is that sender has less frEUR tokens than sent
       const stablecoinBalanceBefore = await instance.balanceOf(sender);
-      assert.equal(stablecoinBalanceBefore, ether(83)); // sender has 83 frEUR
 
-      let stablecoinsToBurn = ether(222); // tries to burn more stablecoin than it has (222 vs. 83)
+      let stablecoinsToBurn = Number(stablecoinBalanceBefore) * 2; // tries to burn 2x more stablecoin than it has
 
       const debtAmountBefore = await instance.getDebtAmount(beneficiary);
-      assert.equal(debtAmountBefore, ether(333));
+      assert.equal(Number(debtAmountBefore), ether(277.77777777777777));
       
       // sender burns their stablecoin to benefit beneficiary
-      const burn = await instance.burnStablecoinFor(stablecoinsToBurn, beneficiary, {
+      const burn = await instance.burnStablecoinFor(String(stablecoinsToBurn), beneficiary, {
         from: sender
       });
 
       expectEvent(burn, "Transfer", {
         from: sender,
         to: constants.ZERO_ADDRESS,
-        value: ether(83) // the actual burn should be 83 frEUR, not 222 frEUR
+        value: String(stablecoinBalanceBefore) // the actual burn should be what the sender actually has, not the amount that was specified as argument
       });
 
-      const debtAmountAfter = await instance.getDebtAmount(beneficiary);
-      assert.equal(debtAmountAfter, ether(250));
+      const debtAmountAfter = await instance.getDebtAmount(beneficiary); // 208.33 frEUR
+      assert.approximately(
+        Number(debtAmountBefore)-Number(debtAmountAfter), 
+        Number(stablecoinBalanceBefore),
+        Number(ether(0.000001))
+      );
     });
 
     it("fails at burning because sender's frEUR balance is 0", async () => {
@@ -309,7 +293,7 @@ contract("FreeStablecoin", accounts => {
       const stablecoinBalanceBefore = await instance.balanceOf(sender);
       assert.equal(stablecoinBalanceBefore, 0);
 
-      const debtAmount = ether(250);
+      const stablecoinsToBurn = ether(200); // 200 frEUR
 
       const debtAmountBefore = await instance.getDebtAmount(beneficiary);
 
@@ -317,7 +301,7 @@ contract("FreeStablecoin", accounts => {
 
       // the tx should fail because account 0's frEUR balance is 0
       await expectRevert(
-        instance.burnStablecoinFor(debtAmount, beneficiary, {from: sender}), // trying to burn 250 frEUR debt
+        instance.burnStablecoinFor(stablecoinsToBurn, beneficiary, {from: sender}), // trying to burn 200 frEUR
         "Sender's token balance is 0."
       );
 
@@ -330,6 +314,7 @@ contract("FreeStablecoin", accounts => {
 
     });
     
+    /*
     it("burns less than specified amount of stablecoin due to debt being lower than that", async () => {
       // Beneficiary will burn the whole debt, but will send a bigger amount of stablecoin than really needed.
       // Because sender was burning frEUR for beneficiary, the beneficiary actually holds more frEUR than his debt is.
@@ -368,56 +353,5 @@ contract("FreeStablecoin", accounts => {
     });
     */
   });
-
-  /*
-  describe("Governance", () => {
-    it("changes burn fee percentage", async () => {
-      const burnFeeBefore = await instance.getBurnPercentage();
-      assert.equal(burnFeeBefore, 1);
-
-      let changeFee = await instance.changeBurnFeePercentage(2, {from: governance});
-
-      expectEvent(changeFee, "BurnFeeChange", {
-        _from: governance,
-        _fee: "2"
-      });
-
-      const burnFeeAfter = await instance.getBurnPercentage();
-      assert.equal(burnFeeAfter, 2);
-    });
-
-    it("prevents non-owner account from changing the burn fee", async () => {
-      const burnFeeBefore = await instance.getBurnPercentage();
-      assert.equal(burnFeeBefore, 2);
-
-      await expectRevert(
-        instance.changeBurnFeePercentage(13, {from: sender}), // sender is not owner!
-        "caller is not the owner"
-      ) 
-
-      const burnFeeAfter = await instance.getBurnPercentage();
-      assert.equal(burnFeeAfter, 2);
-    });
-
-    it("changes the oracle address", async () => {
-      // let's use accounts[5] as the dummy new oracle address
-      const oracle = accounts[5];
-
-      let changeOracle = await instance.changeOracleAddress(oracle, {from: governance});
-
-      expectEvent(changeOracle, "OracleChange", {
-        _from: governance,
-        _oracle: oracle
-      });
-    });
-
-    it("prevents non-owner account from changing the oracle address", async () => {
-      await expectRevert(
-        instance.changeOracleAddress(accounts[7], {from: sender}), // sender is not owner!
-        "caller is not the owner"
-      ) 
-    });
-  });
-  */
 
 });
