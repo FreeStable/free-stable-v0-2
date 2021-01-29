@@ -40,7 +40,7 @@ contract("FreeStablecoin", accounts => {
         value: ether(ethValue)
       });
 
-      // gas used: 128032
+      // gas used: 129599
       // console.log("Gas used (mintStablecoin): " + mint.receipt.gasUsed);
 
       expectEvent(mint, "Transfer", {
@@ -69,7 +69,7 @@ contract("FreeStablecoin", accounts => {
         value: ether(ethValue)
       });
 
-      // gas used: 113447
+      // gas used: 115036
       // console.log("Gas used (mintStablecoinFor): " + mint.receipt.gasUsed);
 
       expectEvent(mint, "Transfer", {
@@ -111,7 +111,7 @@ contract("FreeStablecoin", accounts => {
         from: sender
       });
 
-      // gas used: 90813
+      // gas used: 79965
       // console.log("Gas used (burnStablecoin): " + burn.receipt.gasUsed);
 
       expectEvent(burn, "Transfer", {
@@ -168,7 +168,7 @@ contract("FreeStablecoin", accounts => {
         from: sender
       });
 
-      // gas used: 36911
+      // gas used: 37356
       // console.log("Gas used (burnStablecoin): " + burn.receipt.gasUsed);
 
       expectEvent(burn, "Transfer", {
@@ -221,7 +221,7 @@ contract("FreeStablecoin", accounts => {
         from: sender
       });
 
-      // gas used: 86257
+      // gas used: 80300
       // console.log("Gas used (burnStablecoinFor): " + burn.receipt.gasUsed);
 
       expectEvent(burn, "Transfer", {
@@ -273,6 +273,9 @@ contract("FreeStablecoin", accounts => {
       const burn = await instance.burnStablecoinFor(String(stablecoinsToBurn), beneficiary, {
         from: sender
       });
+
+      // gas used: 65292
+      // console.log("Gas used (burnStablecoinFor - lower balance): " + burn.receipt.gasUsed);
 
       expectEvent(burn, "Transfer", {
         from: sender,
@@ -331,8 +334,8 @@ contract("FreeStablecoin", accounts => {
         from: beneficiary
       });
 
-      // gas used: 43829
-      // console.log("Gas used (burnStablecoin): " + burn.receipt.gasUsed);
+      // gas used: 44720
+      // console.log("Gas used (burnStablecoin - lower debt): " + burn.receipt.gasUsed);
 
       expectEvent(burn, "Transfer", {
         from: beneficiary,
@@ -390,6 +393,9 @@ contract("FreeStablecoin", accounts => {
         from: sender2
       });
 
+      // gas used: 85599
+      // console.log("Gas used (burnStablecoin - ratio below threshold): " + burn.receipt.gasUsed);
+
       expectEvent(burn, "Transfer", {
         from: sender2,
         to: constants.ZERO_ADDRESS,
@@ -425,6 +431,9 @@ contract("FreeStablecoin", accounts => {
       const burn = await instance.burnStablecoin(amountToBurn, {
         from: sender2
       });
+
+      // gas used: 85599
+      // console.log("Gas used (burnStablecoin - ratio above threshold): " + burn.receipt.gasUsed);
 
       expectEvent(burn, "Transfer", {
         from: sender2,
