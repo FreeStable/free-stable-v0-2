@@ -314,29 +314,29 @@ contract("FreeStablecoin", accounts => {
 
     });
     
-    /*
     it("burns less than specified amount of stablecoin due to debt being lower than that", async () => {
       // Beneficiary will burn the whole debt, but will send a bigger amount of stablecoin than really needed.
-      // Because sender was burning frEUR for beneficiary, the beneficiary actually holds more frEUR than his debt is.
-      const debtAmountBefore = await instance.getDebtAmount(beneficiary); // 250 frEUR
-      assert.equal(debtAmountBefore, ether(250));
+      // Because sender was burning frEUR for beneficiary previously, the beneficiary actually holds more frEUR than his debt is.
+      const debtAmountBefore = await instance.getDebtAmount(beneficiary); // 208.33 frEUR
+      assert.equal(Number(debtAmountBefore), ether(208.33333333333334));
 
-      const stablecoinBalanceBefore = await instance.balanceOf(beneficiary); // 500 frEUR
-      assert.equal(stablecoinBalanceBefore, ether(500));
+      const stablecoinBalanceBefore = await instance.balanceOf(beneficiary); // 416.67 frEUR
+      assert.equal(Number(stablecoinBalanceBefore), ether(416.6666666666667));
 
       const ethBalanceBefore = await web3.eth.getBalance(beneficiary);
       
-      const burn = await instance.burnStablecoin(ether(500), { // try to burn 500 frEUR
+      // try to burn the whole stablecoin balance (even though the debt is lower than that)
+      const burn = await instance.burnStablecoin(stablecoinBalanceBefore, {
         from: beneficiary
       });
 
-      // gas used: 39564
+      // gas used: 43829
       // console.log("Gas used (burnStablecoin): " + burn.receipt.gasUsed);
 
       expectEvent(burn, "Transfer", {
         from: beneficiary,
         to: constants.ZERO_ADDRESS,
-        value: ether(250) // the real amount of burned tokens should be 250 frEUR (not 500)
+        value: debtAmountBefore // the real amount of burned tokens should be 250 frEUR (not 500)
       });
 
       const debtAmountAfter = await instance.getDebtAmount(beneficiary);
@@ -346,12 +346,11 @@ contract("FreeStablecoin", accounts => {
       assert.equal(collateralAmount, 0); // all collateral is returned (minus the burn fee)
 
       const stablecoinBalanceAfter = await instance.balanceOf(beneficiary);
-      assert.equal(stablecoinBalanceAfter, ether(250));
+      assert.equal(stablecoinBalanceAfter, stablecoinBalanceBefore-debtAmountBefore);
 
       const ethBalanceAfter = await web3.eth.getBalance(beneficiary);
       assert.isTrue(ethBalanceBefore < ethBalanceAfter);
     });
-    */
   });
 
 });
