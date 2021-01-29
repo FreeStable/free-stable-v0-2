@@ -5,6 +5,8 @@ import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
 import '@openzeppelin/contracts/access/Ownable.sol';
 import "@openzeppelin/contracts/math/SafeMath.sol";
 
+import "hardhat/console.sol";
+
 contract FreeStablecoin is ERC20, Ownable {
   using SafeMath for uint256;
 
@@ -12,6 +14,7 @@ contract FreeStablecoin is ERC20, Ownable {
   address private oracle;
   uint private burnFeeBps = 100; // 100bps or 1% by default
   uint private collRatioPercent = 120; // 120% by default
+  uint private ethPrice = 500; // 500 by default
 
   // DATA STRUCTURES
   struct Vault { // each minter has a vault that tracks the amount of ETH locked and stablecoin minted
@@ -25,43 +28,52 @@ contract FreeStablecoin is ERC20, Ownable {
   // EVENTS
   event BurnFeeChange(address indexed _from, uint _fee);
   event OracleChange(address indexed _from, address indexed _oracle);
+  event CollRatioChange(address indexed _from, uint _collRatio);
   
   // CONSTRUCTOR
   constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) {}
 
   // VIEW
-  function getCollateralAmount(address minter) public view returns(uint) {
-    return vaults[minter].ethLocked;
+  function getCollateralAmount(address _minter) public view returns(uint) {
+    return vaults[_minter].ethLocked;
   }
 
-  function getDebtAmount(address minter) public view returns(uint) {
-    return vaults[minter].stablecoinsMinted;
+  function getDebtAmount(address _minter) public view returns(uint) {
+    return vaults[_minter].stablecoinsMinted;
   }
 
   function getBurnFee() public view returns(uint) {
     return burnFeeBps;
   }
 
+  function getCollRatioOf(address _minter) public view returns(uint) {
+    // (eth collateral * eth price) * 100 / debt; 100 is to get the percent result
+    return vaults[_minter].ethLocked * ethPrice * 100 / vaults[_minter].stablecoinsMinted;
+  }
+
+  function getCollRatio() public view returns(uint) {
+    return collRatioPercent;
+  }
+
+  function getEthPrice() public view returns(uint) {
+    return ethPrice;
+  }
+
   // PUBLIC (state changing)
-  function burnStablecoin(uint stablecoinAmount) public returns(bool) {
-    _burnStablecoin(stablecoinAmount, _msgSender());
+  function burnStablecoin(uint _stablecoinAmount) public returns(bool) {
+    _burnStablecoin(_stablecoinAmount, _msgSender());
     return true;
   }
   
-  function burnStablecoinFor(uint stablecoinAmount, address beneficiary) public returns(bool) {
-    _burnStablecoin(stablecoinAmount, beneficiary);
+  function burnStablecoinFor(uint _stablecoinAmount, address _beneficiary) public returns(bool) {
+    _burnStablecoin(_stablecoinAmount, _beneficiary);
     return true;
   }
 
-  function getCollateralizationRatio(address minter) public returns(uint) {
-    // (eth collateral * eth price) * 100 / debt; 100 is to get the percent result
-    return vaults[minter].ethLocked * getEthPrice() * 100 / vaults[minter].stablecoinsMinted;
-  }
-
-  function getEthPrice() public returns(uint) {
+  function fetchEthPrice() public returns(uint) {
     // gets current ETH price from an oracle
     // hardcoded for this experiment only
-    return 500; // 1 ETH = 500 stablecoins
+    ethPrice = 500; // 1 ETH = 500 stablecoins
   }
 
   // function liquidateVault(address minter) public returns(bool) {}
@@ -71,8 +83,8 @@ contract FreeStablecoin is ERC20, Ownable {
     return true;
   }
 
-  function mintStablecoinFor(address beneficiary) payable public returns(bool) {
-    _mintStablecoin(msg.value, beneficiary);
+  function mintStablecoinFor(address _beneficiary) payable public returns(bool) {
+    _mintStablecoin(msg.value, _beneficiary);
     return true;
   }
 
@@ -80,6 +92,7 @@ contract FreeStablecoin is ERC20, Ownable {
   function _mintStablecoin(uint _ethAmount, address _beneficiary) internal returns(bool) {
     require(_ethAmount > 0);
     require(_beneficiary != address(0));
+    fetchEthPrice(); // get the current ETH price
 
     uint _lastInstalment = block.timestamp; // only for new Vaults (or Vaults that have ETH collateral 0)
 
@@ -88,8 +101,7 @@ contract FreeStablecoin is ERC20, Ownable {
       _lastInstalment = vaults[_beneficiary].lastInstalment;
 
       // if the Vault is below the collateralization ratio, use (part of) new collateral to fix the coll. ratio
-      if (getCollateralizationRatio(_beneficiary) < collRatioPercent) {
-        uint ethPrice = getEthPrice();
+      if (getCollRatioOf(_beneficiary) < collRatioPercent) {
         uint collNeeded = (vaults[_beneficiary].stablecoinsMinted - (vaults[_beneficiary].ethLocked*ethPrice)) / ethPrice;
 
         if (collNeeded < _ethAmount) {
@@ -98,11 +110,10 @@ contract FreeStablecoin is ERC20, Ownable {
           return true; // no need for minting, the whole added collateral is used to fix the collateralization ratio
         }
       }
-
     }
 
     // calculate stablecoin amount based on the collateralization ratio
-    uint stablecoinAmount = _ethAmount.mul(getEthPrice()).div(collRatioPercent).mul(100);
+    uint stablecoinAmount = _ethAmount.mul(ethPrice).div(collRatioPercent).mul(100);
 
     // mint
     _mint(_beneficiary, stablecoinAmount);
@@ -113,6 +124,7 @@ contract FreeStablecoin is ERC20, Ownable {
   function _burnStablecoin(uint _stablecoinAmount, address _beneficiary) internal {
     require(_stablecoinAmount > 0);
     require(_beneficiary != address(0));
+    fetchEthPrice(); // fresh ETH price is needed for correct coll. ratio of a _beneficiary
 
     // check if msg.sender has enough stablecoins
     uint senderBalance = balanceOf(_msgSender());
@@ -134,6 +146,17 @@ contract FreeStablecoin is ERC20, Ownable {
       // calculate the percentage of burned stablecoins in debt: (_stablecoinAmount / debt) * collateral
       uint ratio = (_stablecoinAmount.mul(100)).div(debt);
       ethUnlocked = (ratio.mul(getCollateralAmount(_beneficiary))).div(100);
+
+      // if user's collateralization ratio is below the threshold, return less collateral back (and vice versa)
+      // this chunk of code could be further optimized
+      if (getCollRatioOf(_beneficiary) != collRatioPercent) {
+        uint ethLocked = vaults[_beneficiary].ethLocked;
+        uint collWithOldRatio = ethLocked.sub(ethUnlocked);
+
+        // formula: collWithNewRatio = collBefore * (required collRatio / user's collRatio)
+        uint collWithNewRatio = collWithOldRatio.mul(collRatioPercent).mul(100).div(getCollRatioOf(_beneficiary)).div(100);
+        ethUnlocked = ethLocked.sub(collWithNewRatio);
+      }
     }
 
     // calculate the burn fee and reduce the amount of ETH to be returned
@@ -162,7 +185,11 @@ contract FreeStablecoin is ERC20, Ownable {
     return true;
   }
 
-  // TODO: function changeCollRatio
+  function changeCollRatio(uint _collRatioPercent) public onlyOwner returns(bool) {
+    collRatioPercent = _collRatioPercent;
+    emit CollRatioChange(_msgSender(), _collRatioPercent);
+    return true;
+  }
 
   function changeOracleAddress(address oracle_) public onlyOwner returns(bool) {
     oracle = oracle_;

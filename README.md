@@ -29,9 +29,6 @@ Currently the users cannot choose the size of coll. ratio, it is automatically s
 
 ## TODO
 
-- adapt the tests from v0.1
-- a burn test for when coll. ratio is below 120%
 - a minimum required instalment amount (fixed amount in v0.2, possible switch to relative in v0.3)
 - liquidation function
 - additional tests for liquidations
-- governance: a function to change the coll. ratio

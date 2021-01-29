@@ -19,6 +19,7 @@ contract("FreeStablecoin", accounts => {
   const governance = accounts[0];
   const sender = accounts[1];
   const beneficiary = accounts[2];
+  const sender2 = accounts[3];
 
   const name = "FreeEUR";
   const symbol = "frEUR";
@@ -351,6 +352,103 @@ contract("FreeStablecoin", accounts => {
       const ethBalanceAfter = await web3.eth.getBalance(beneficiary);
       assert.isTrue(ethBalanceBefore < ethBalanceAfter);
     });
+
+    it("burn when coll. ratio is BELOW threshold", async () => {
+      // sender2's debt initial
+      const debtAmountBefore = await instance.getDebtAmount(sender2);
+      assert.equal(Number(debtAmountBefore), 0);
+
+      // sender2's stablecoin balance initial
+      const stablecoinBalanceBefore = await instance.balanceOf(sender2);
+      assert.equal(Number(stablecoinBalanceBefore), 0);
+
+      // sender2 needs to mint some frEUR because it doesn't have any right now
+      const mint = await instance.mintStablecoin({
+        from: sender2,
+        value: ether(1)
+      });
+
+      // sender2's debt after mint
+      const debtAmountAfterMint = await instance.getDebtAmount(sender2);
+      assert.equal(Number(debtAmountAfterMint), ether(416.6666666666667)); // 416.67 frEUR
+
+      // sender2's stablecoin balance after mint
+      const stablecoinBalanceAfterMint = await instance.balanceOf(sender2);
+      assert.equal(Number(stablecoinBalanceAfterMint), ether(416.6666666666667)); // 416.67 frEUR
+
+      const collRatioBefore = await instance.getCollRatioOf(sender2);
+      assert.equal(collRatioBefore, 120);
+
+      // raise the coll. ratio to 150%
+      const newCollRatio = 150;
+      let changeCollRatio = await instance.changeCollRatio(String(newCollRatio), {from: governance});
+
+      const amountToBurn = ether(100); // burn 100 frEUR
+
+      // now do the burn
+      const burn = await instance.burnStablecoin(amountToBurn, {
+        from: sender2
+      });
+
+      expectEvent(burn, "Transfer", {
+        from: sender2,
+        to: constants.ZERO_ADDRESS,
+        value: amountToBurn
+      });
+
+      // check whether coll. ratio is now 150% as required
+      const collRatioAfter = await instance.getCollRatioOf(sender2);
+      assert.equal(Number(collRatioAfter), 150);
+
+    });
+
+    it("burn when coll. ratio is ABOVE threshold", async () => {
+      // sender2's debt before burn
+      const debtAmountBefore = await instance.getDebtAmount(sender2);
+      assert.equal(Number(debtAmountBefore), ether(316.6666666666667));
+
+      // sender2's stablecoin balance before burn
+      const stablecoinBalanceBefore = await instance.balanceOf(sender2);
+      assert.equal(Number(stablecoinBalanceBefore), ether(316.6666666666667));
+
+      // sender2's coll. ratio before burn
+      const collRatioBefore = await instance.getCollRatioOf(sender2);
+      assert.equal(collRatioBefore, 150);
+
+      // lower the coll. ratio to 130%
+      const newCollRatio = 130;
+      let changeCollRatio = await instance.changeCollRatio(String(newCollRatio), {from: governance});
+
+      const amountToBurn = ether(100); // burn 100 frEUR
+
+      // now do the burn
+      const burn = await instance.burnStablecoin(amountToBurn, {
+        from: sender2
+      });
+
+      expectEvent(burn, "Transfer", {
+        from: sender2,
+        to: constants.ZERO_ADDRESS,
+        value: amountToBurn
+      });
+
+      // coll. ratio for sender2 is now lowered to approx. 130%
+      const collRatioAfter = await instance.getCollRatioOf(sender2);
+      assert.approximately(
+        Number(collRatioAfter), 
+        Number(130),
+        1);
+
+      // sender2's debt after burn
+      const debtAmountAfter = await instance.getDebtAmount(sender2);
+      assert.equal(Number(debtAmountAfter), ether(216.66666666666666));
+
+      // sender2's stablecoin balance after burn
+      const stablecoinBalanceAfter = await instance.balanceOf(sender2);
+      assert.equal(Number(stablecoinBalanceAfter), ether(216.66666666666666));
+
+    });
+
   });
 
 });

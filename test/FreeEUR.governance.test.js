@@ -57,6 +57,23 @@ contract("FreeStablecoin", accounts => {
       assert.equal(burnFeeAfter, 200);
     });
 
+    it("changes collateralization ratio", async () => {
+      const collRatioBefore = await instance.getCollRatio();
+      assert.equal(collRatioBefore, 120);
+
+      const newCollRatio = 150;
+
+      let changeCollRatio = await instance.changeCollRatio(String(newCollRatio), {from: governance});
+
+      expectEvent(changeCollRatio, "CollRatioChange", {
+        _from: governance,
+        _collRatio: String(newCollRatio)
+      });
+
+      const collRatioAfter = await instance.getCollRatio();
+      assert.equal(collRatioAfter, newCollRatio);
+    });
+
     it("changes the oracle address", async () => {
       // let's use accounts[5] as the dummy new oracle address
       const oracle = accounts[5];
