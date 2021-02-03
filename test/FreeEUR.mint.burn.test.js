@@ -106,6 +106,9 @@ contract("FreeStablecoin", accounts => {
       assert.equal(Number(stablecoinBalanceBefore), Number(ether(ethValue*ethPrice/collRatio))); // around 416.66 frEUR
 
       let stablecoinsToBurn = String(stablecoinBalanceBefore/3); // burn 33% (a third) of your stablecoins
+
+      // get the last instalment timestamp (should be the minting time)
+      const instalmentTimestampBefore = await instance.getLastInstalment(sender);
       
       const burn = await instance.burnStablecoin(stablecoinsToBurn, {
         from: sender
@@ -119,6 +122,10 @@ contract("FreeStablecoin", accounts => {
         to: constants.ZERO_ADDRESS,
         value: stablecoinsToBurn
       });
+
+      // get the new instalment timestamp (should be the burn time)
+      const instalmentTimestampAfter = await instance.getLastInstalment(sender);
+      assert.isTrue(instalmentTimestampAfter > instalmentTimestampBefore); // new timestamp is bigger than the old one
 
       // the collateral for sender has been reduced from 1 ETH by a third (33%)
       const collateralAmountAfter = await instance.getCollateralAmount(sender);
@@ -148,6 +155,46 @@ contract("FreeStablecoin", accounts => {
         Number(ethBalanceGovernanceAfter)-Number(ethBalanceGovernanceBefore), 
         Number(burnFeeTotal),
         Number(10000000));
+    });
+
+    it("fails at burning because the instalment amount is too low", async () => {
+      const ethBalanceBefore = await web3.eth.getBalance(sender);
+
+      const collateralAmountBefore = await instance.getCollateralAmount(sender);
+
+      const debtAmountBefore = await instance.getDebtAmount(sender);
+
+      // stablecoin balance before the first burn
+      const initialStablecoinBalance = Number(ether(ethValue*ethPrice/collRatio));
+
+      // stablecoin balance now (after the first burn)
+      const stablecoinBalanceBefore = await instance.balanceOf(sender);
+      assert.equal(Number(stablecoinBalanceBefore), initialStablecoinBalance-(initialStablecoinBalance/3));
+
+      let stablecoinsToBurn = ether(5); // 5frEUR, which is too low (minimum is 10 frEUR)
+      
+      await expectRevert(
+        instance.burnStablecoin(stablecoinsToBurn, {
+          from: sender
+        }),
+        "The _stablecoinAmount sent is lower than both the required minimum and the debt."
+      );
+
+      const debtAmountAfter = await instance.getDebtAmount(sender);
+      assert.equal(Number(debtAmountBefore), Number(debtAmountAfter));
+
+      const collateralAmountAfter = await instance.getCollateralAmount(sender);
+      assert.equal(Number(collateralAmountAfter), Number(collateralAmountBefore));
+
+      const stablecoinBalanceAfter = await instance.balanceOf(sender);
+      assert.equal(Number(stablecoinBalanceAfter), Number(stablecoinBalanceBefore));
+
+      const ethBalanceAfter = await web3.eth.getBalance(sender);
+      assert.approximately(
+        Number(ethBalanceBefore),
+        Number(ethBalanceAfter),
+        Number(ether(0.003)) // difference due to gas cost of the reverted tx
+      );
     });
 
     it("burns the rest of the sender's stablecoins", async () => {

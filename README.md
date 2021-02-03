@@ -27,8 +27,11 @@ The following ideas may be implemented in one of the future versions.
 
 Currently the users cannot choose the size of coll. ratio, it is automatically set at the amount defined by the governance. Instead the user could be allowed to set a higher coll. ratio when calling the minting function.
 
+### Both fixed and relative minimum instalment amount
+
+In v0.2, the minimal required instalment amount is fixed, which is not optimal. The v0.3 version will have both relative and fixed minimal instalment amounts. The lower one will be the threshold.
+
 ## TODO
 
-- a minimum required instalment amount (fixed amount in v0.2, possible switch to relative in v0.3)
 - liquidation function
 - additional tests for liquidations

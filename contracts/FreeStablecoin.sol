@@ -12,9 +12,10 @@ contract FreeStablecoin is ERC20, Ownable {
 
   // VARIABLES
   address private oracle;
-  uint private burnFeeBps = 100; // 100bps or 1% by default
-  uint private collRatioPercent = 120; // 120% by default
-  uint private ethPrice = 500; // 500 by default
+  uint private burnFeeBps = 100; // 100bps or 1%
+  uint private collRatioPercent = 120; // 120%
+  uint private ethPrice = 500; // 500 frEUR
+  uint private minInstalmentAmount = 10000000000000000000; // 10frEUR
 
   // DATA STRUCTURES
   struct Vault { // each minter has a vault that tracks the amount of ETH locked and stablecoin minted
@@ -27,8 +28,9 @@ contract FreeStablecoin is ERC20, Ownable {
 
   // EVENTS
   event BurnFeeChange(address indexed _from, uint _fee);
-  event OracleChange(address indexed _from, address indexed _oracle);
   event CollRatioChange(address indexed _from, uint _collRatio);
+  event MinInstalmentAmountChanged(address indexed _from, uint indexed _amount);
+  event OracleChange(address indexed _from, address indexed _oracle);
   
   // CONSTRUCTOR
   constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) {}
@@ -57,6 +59,14 @@ contract FreeStablecoin is ERC20, Ownable {
 
   function getEthPrice() public view returns(uint) {
     return ethPrice;
+  }
+
+  function getLastInstalment(address _minter) public view returns(uint) {
+    return vaults[_minter].lastInstalment;
+  }
+
+  function getMinInstalmentAmount() public view returns(uint) {
+    return minInstalmentAmount;
   }
 
   // PUBLIC (state changing)
@@ -122,8 +132,8 @@ contract FreeStablecoin is ERC20, Ownable {
   }
 
   function _burnStablecoin(uint _stablecoinAmount, address _beneficiary) internal {
-    require(_stablecoinAmount > 0);
-    require(_beneficiary != address(0));
+    require(_stablecoinAmount > 0, "Stablecoin amount needs to be larger than 0.");
+    require(_beneficiary != address(0), "The beneficiary cannot be the 0x0 address.");
     fetchEthPrice(); // fresh ETH price is needed for correct coll. ratio of a _beneficiary
 
     // check if msg.sender has enough stablecoins
@@ -132,6 +142,9 @@ contract FreeStablecoin is ERC20, Ownable {
 
     if (senderBalance == 0) {
       revert("Sender's token balance is 0."); // if msg.sender has 0 stablecoins, revert
+    } else if (_stablecoinAmount < debt && _stablecoinAmount < minInstalmentAmount) {
+      // if _stablecoinAmount is lower than minimum, reject the tx (unless _stablecoinAmount >= debt)
+      revert("The _stablecoinAmount sent is lower than both the required minimum and the debt.");
     } else if (senderBalance < _stablecoinAmount) {
       _stablecoinAmount = senderBalance; // balance is less than specified amount, reduce the _stablecoinAmount
     } else if (debt < _stablecoinAmount) {
@@ -188,6 +201,12 @@ contract FreeStablecoin is ERC20, Ownable {
   function changeCollRatio(uint _collRatioPercent) public onlyOwner returns(bool) {
     collRatioPercent = _collRatioPercent;
     emit CollRatioChange(_msgSender(), _collRatioPercent);
+    return true;
+  }
+
+  function changeMinInstalmentAmount(uint _minInstalmentAmount) public onlyOwner returns(bool) {
+    minInstalmentAmount = _minInstalmentAmount;
+    emit MinInstalmentAmountChanged(_msgSender(), _minInstalmentAmount);
     return true;
   }
 

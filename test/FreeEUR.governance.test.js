@@ -74,6 +74,23 @@ contract("FreeStablecoin", accounts => {
       assert.equal(collRatioAfter, newCollRatio);
     });
 
+    it("changes the minimum instalment amount", async () => {
+      const instalmentBefore = await instance.getMinInstalmentAmount();
+      assert.equal(instalmentBefore, ether(10));
+
+      const newAmount = ether(12);
+
+      let changeAmount = await instance.changeMinInstalmentAmount(newAmount, {from: governance});
+
+      expectEvent(changeAmount, "MinInstalmentAmountChanged", {
+        _from: governance,
+        _amount: newAmount
+      });
+
+      const instalmentAfter = await instance.getMinInstalmentAmount();
+      assert.equal(instalmentAfter, newAmount);
+    });
+
     it("changes the oracle address", async () => {
       // let's use accounts[5] as the dummy new oracle address
       const oracle = accounts[5];
