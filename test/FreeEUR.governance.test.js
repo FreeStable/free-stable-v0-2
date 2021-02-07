@@ -74,6 +74,23 @@ contract("FreeStablecoin", accounts => {
       assert.equal(collRatioAfter, newCollRatio);
     });
 
+    it("changes the maximum instalment period", async () => {
+      const periodBefore = await instance.getMaxInstalmentPeriod();
+      assert.equal(Number(periodBefore), 2592000); // 30 days
+
+      const newPeriod = 14 * 24 * 60 * 60; // 14 days (1209600)
+
+      let changePeriod = await instance.changeMaxInstalmentPeriod(String(newPeriod), {from: governance});
+
+      expectEvent(changePeriod, "MaxInstalmentPeriodChanged", {
+        _from: governance,
+        _period: String(newPeriod)
+      });
+
+      const periodAfter = await instance.getMaxInstalmentPeriod();
+      assert.equal(Number(periodAfter), newPeriod);
+    });
+
     it("changes the minimum instalment amount", async () => {
       const instalmentBefore = await instance.getMinInstalmentAmount();
       assert.equal(instalmentBefore, ether(10));

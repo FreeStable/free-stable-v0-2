@@ -15,7 +15,8 @@ contract FreeStablecoin is ERC20, Ownable {
   uint private burnFeeBps = 100; // 100bps or 1%
   uint private collRatioPercent = 120; // 120%
   uint private ethPrice = 500; // 500 frEUR
-  uint private minInstalmentAmount = 10000000000000000000; // 10frEUR
+  uint private maxInstalmentPeriod = 30 * 24 * 60 * 60; // max time between instalments: 30 days (2592000 seconds)
+  uint private minInstalmentAmount = 10 * (10 ** 18); // 10frEUR (with 18 decimal places)
 
   // DATA STRUCTURES
   struct Vault { // each minter has a vault that tracks the amount of ETH locked and stablecoin minted
@@ -31,6 +32,7 @@ contract FreeStablecoin is ERC20, Ownable {
   // EVENTS
   event BurnFeeChange(address indexed _from, uint _fee);
   event CollRatioChange(address indexed _from, uint _collRatio);
+  event MaxInstalmentPeriodChanged(address indexed _from, uint indexed _period);
   event MinInstalmentAmountChanged(address indexed _from, uint indexed _amount);
   event OracleChange(address indexed _from, address indexed _oracle);
   
@@ -65,6 +67,10 @@ contract FreeStablecoin is ERC20, Ownable {
 
   function getLastInstalment(address _minter) public view returns(uint) {
     return vaults[_minter].lastInstalment;
+  }
+
+  function getMaxInstalmentPeriod() public view returns(uint) {
+    return maxInstalmentPeriod;
   }
 
   function getMinInstalmentAmount() public view returns(uint) {
@@ -221,6 +227,12 @@ contract FreeStablecoin is ERC20, Ownable {
   function changeCollRatio(uint _collRatioPercent) public onlyOwner returns(bool) {
     collRatioPercent = _collRatioPercent;
     emit CollRatioChange(_msgSender(), _collRatioPercent);
+    return true;
+  }
+
+  function changeMaxInstalmentPeriod(uint _maxInstalmentPeriod) public onlyOwner returns(bool) {
+    maxInstalmentPeriod = _maxInstalmentPeriod;
+    emit MaxInstalmentPeriodChanged(_msgSender(), _maxInstalmentPeriod);
     return true;
   }
 
