@@ -92,6 +92,17 @@ contract("FreeStablecoin", accounts => {
       const stablecoinBalance = await instance.balanceOf(beneficiary);
       assert.equal(Number(stablecoinBalance), Number(ether(ethValue*ethPrice/collRatio))); // around 416.66 frEUR
     });
+
+    it("fetches minters addresses from minters array", async () => {
+      const length = await instance.getMintersArrayLength();
+      assert.equal(Number(length), 2);
+
+      const minter1 = await instance.getMinterAddressByIndex(0);
+      assert.equal(minter1, sender);
+
+      const minter2 = await instance.getMinterAddressByIndex(1);
+      assert.equal(minter2, beneficiary);
+    });
     
     it("partly burns stablecoins", async () => {
       // sender decides to burn some stablecoins and reduce their own debt

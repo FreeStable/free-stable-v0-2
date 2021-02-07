@@ -31,6 +31,10 @@ Currently the users cannot choose the size of coll. ratio, it is automatically s
 
 In v0.2, the minimal required instalment amount is fixed, which is not optimal. The v0.3 version will have both relative and fixed minimal instalment amounts. The lower one will be the threshold.
 
+### Partial liquidations
+
+Allow liqiudators to liquidate only part of a minter's collateral (meaning only part of the debt is returned).
+
 ## TODO
 
 - liquidation function

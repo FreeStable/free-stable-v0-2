@@ -26,6 +26,8 @@ contract FreeStablecoin is ERC20, Ownable {
 
   mapping (address => Vault) private vaults;
 
+  address[] private minters; // a list of all addresses that ever minted a stablecoin through this smart contract
+
   // EVENTS
   event BurnFeeChange(address indexed _from, uint _fee);
   event CollRatioChange(address indexed _from, uint _collRatio);
@@ -69,6 +71,14 @@ contract FreeStablecoin is ERC20, Ownable {
     return minInstalmentAmount;
   }
 
+  function getMinterAddressByIndex(uint _index) public view returns(address) {
+    return minters[_index];
+  }
+
+  function getMintersArrayLength() public view returns(uint) {
+    return minters.length;
+  }
+
   // PUBLIC (state changing)
   function burnStablecoin(uint _stablecoinAmount) public returns(bool) {
     _burnStablecoin(_stablecoinAmount, _msgSender());
@@ -80,13 +90,20 @@ contract FreeStablecoin is ERC20, Ownable {
     return true;
   }
 
-  function fetchEthPrice() public returns(uint) {
+  function fetchEthPrice() public returns(bool) {
     // gets current ETH price from an oracle
     // hardcoded for this experiment only
     ethPrice = 500; // 1 ETH = 500 stablecoins
+    return true;
   }
 
-  // function liquidateVault(address minter) public returns(bool) {}
+  function liquidateVault(address _minter, uint _stablecoinAmount) public returns(bool) {
+    // TODO
+    // if coll. ratio below the required collRatioPercent
+    // if last instalment payment more than the specified max time ago
+    // then liquidation can happen (basically burn, but collateral goes to _msgSender)
+    // only full liquidation is possible
+  }
 
   function mintStablecoin() payable public returns(bool) {
     _mintStablecoin(msg.value, _msgSender());
@@ -128,6 +145,9 @@ contract FreeStablecoin is ERC20, Ownable {
     // mint
     _mint(_beneficiary, stablecoinAmount);
     vaults[_beneficiary] = Vault(_ethAmount, stablecoinAmount, _lastInstalment);
+
+    minters.push(_beneficiary);
+
     return true;
   }
 
