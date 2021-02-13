@@ -35,6 +35,10 @@ In v0.2, the minimal required instalment amount is fixed, which is not optimal. 
 
 Allow liqiudators to liquidate only part of a minter's collateral (meaning only part of the debt is returned).
 
+### Compensating liquidators in case collateralization ratio is below 100%
+
+In case a liquidation is only possible after the collateralization ratio has already fallen below 100%, the liquidator could be compensated with governance tokens (up to the 100% ratio value).
+
 ## TODO
 
 - liquidation function
