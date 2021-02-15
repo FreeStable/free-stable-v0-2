@@ -3,6 +3,7 @@ const {
   constants,    // Common constants, like the zero address and largest integers
   expectEvent,  // Assertions for emitted events
   expectRevert, // Assertions for transactions that should fail
+  time          // Time manipulation library
 } = require('@openzeppelin/test-helpers');
 
 const { assert } = require("chai");
@@ -516,6 +517,99 @@ contract("FreeStablecoin", accounts => {
 
     });
 
+    it("fails to liquidate a user (stablecoinAmount too low)", async () => {
+      // minter: sender2
+      // liquidator: sender
+      let liquidator = sender;
+
+      // sender2 and beneficiary need to send some frEUR to liquidator (because liquidator does not have any right now)
+      await instance.transfer(liquidator, ether(200), {from: sender2});
+      await instance.transfer(liquidator, ether(200), {from: beneficiary});
+
+      // liquidator's stablecoin balance is now 400 frEUR
+      const stablecoinBalance = await instance.balanceOf(liquidator);
+      assert.equal(Number(stablecoinBalance), ether(400));
+
+      const stablecoinAmount = ether(50); // 50 frEUR
+
+      await expectRevert(
+        instance.liquidateVault(sender2, stablecoinAmount, {from: liquidator}),
+        "The entered stablecoin amount is too low"
+      );
+    });
+
+    it("fails to liquidate a user (coll. ratio not below threshold)", async () => {
+      // minter: sender2
+      // liquidator: sender
+      let liquidator = sender;
+
+      // sender2's debt amount before
+      const debtAmountBefore = await instance.getDebtAmount(sender2);
+      assert.equal(Number(debtAmountBefore), ether(216.66666666666666));
+
+      const stablecoinAmount = ether(220); // 220 frEUR (can be above debt value, just not below)
+
+      await expectRevert(
+        instance.liquidateVault(sender2, stablecoinAmount, {from: liquidator}),
+        "Collateralization ratio is not below the required value"
+      );
+    });
+
+    it("fails to liquidate a user (coll. ratio below threshold, but max time between instalments not exceeded)", async () => {
+      // minter: sender2
+      // liquidator: sender
+      let liquidator = sender;
+
+      // confirm that sender2's coll. ratio is 131%
+      const collRatioSender2 = await instance.getCollRatioOf(sender2);
+      assert.equal(Number(collRatioSender2), 131);
+
+      // raise the required coll. ratio to 200% (sender2 has coll. ratio of 131%)
+      await instance.changeCollRatio(String(200), {from: governance});
+
+      const stablecoinAmount = ether(220); // 220 frEUR
+
+      await expectRevert(
+        instance.liquidateVault(sender2, stablecoinAmount, {from: liquidator}),
+        "Max time between instalments not exceeded"
+      );
+    });
+
+    it("fully liquidates a collateral", async () => {
+      // minter: sender2
+      // liquidator: sender
+      let liquidator = sender;
+
+      // sender2's debt amount before
+      const debtAmountBefore2 = await instance.getDebtAmount(sender2);
+      assert.equal(Number(debtAmountBefore2), ether(216.66666666666666));
+
+      // sender2 & liquidator's ETH balances before
+      const ethBalanceBeforeSender2 = await web3.eth.getBalance(sender2);
+      const ethBalanceBeforeLiquidator = await web3.eth.getBalance(liquidator);
+
+      // fast forward in time so that user misses the instalment payment and can now be liquidated
+      await time.increase(time.duration.days(31)); // max time is 30 days
+
+      // liquidation
+      let stablecoinAmount = ether(220);
+      let liquidation = await instance.liquidateVault(sender2, stablecoinAmount, {from: liquidator});
+
+      // sender2's debt amount after
+      const debtAmountAfter = await instance.getDebtAmount(sender2);
+      assert.equal(Number(debtAmountAfter), 0);
+
+      // sender2's collateral amount after
+      const collAmountAfter = await instance.getCollateralAmount(sender2);
+      assert.equal(Number(collAmountAfter), 0);
+
+      // sender2 & liquidator's ETH balances after
+      const ethBalanceAfterSender2 = await web3.eth.getBalance(sender2);
+      assert.equal(ethBalanceBeforeSender2, ethBalanceAfterSender2); // should stay the same, because collateral went to liquidator
+
+      const ethBalanceAfterLiquidator = await web3.eth.getBalance(liquidator);
+      assert.isTrue(ethBalanceAfterLiquidator > ethBalanceBeforeLiquidator); // liquidator should now have bigger ETH balance
+    });
   });
 
 });

@@ -104,11 +104,33 @@ contract FreeStablecoin is ERC20, Ownable {
   }
 
   function liquidateVault(address _minter, uint _stablecoinAmount) public returns(bool) {
-    // TODO
-    // if coll. ratio below the required collRatioPercent
-    // if last instalment payment more than the specified max time ago
-    // then liquidation can happen (basically burn, but collateral goes to _msgSender)
-    // only full liquidation is possible
+    require(getDebtAmount(_minter) <= _stablecoinAmount, "The entered stablecoin amount is too low. Only full liquidations are possible.");
+    require(getCollRatioOf(_minter) < collRatioPercent, "Collateralization ratio is not below the required value.");
+    require(getLastInstalment(_minter) + maxInstalmentPeriod < block.timestamp, "Max time between instalments not exceeded.");
+    
+    // liquidation (collateral goes to msg.sender)
+
+    // collateral amount
+    uint ethUnlocked = vaults[_minter].ethLocked;
+
+    // calculate the burn fee and reduce the amount of ETH collateral to be sent to the liquidator
+    uint burnFee = ethUnlocked.mul(burnFeeBps).div(10000); // divided by 10000 because it's basis points, not percentage
+
+    // burn stablecoins that below to msg.sender (not the _minter!!!)
+    _burn(_msgSender(), getDebtAmount(_minter));
+
+    // reduce the collateral and stablecoin amounts in Vault to 0
+    vaults[_minter].ethLocked = 0;
+    vaults[_minter].stablecoinsMinted = 0;
+    vaults[_minter].lastInstalment = block.timestamp;
+
+    // send the burn fee in ETH to the owner/governance address
+    payable(owner()).transfer(burnFee);
+
+    // return the unlocked ETH to beneficiary (minus the burn fee)
+    payable(_msgSender()).transfer(ethUnlocked.sub(burnFee));
+
+    return true;
   }
 
   function mintStablecoin() payable public returns(bool) {

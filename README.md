@@ -1,7 +1,5 @@
 # FreeStable v0.2 - Stablecoin Research
 
-> WIP - Work In Progress. For research purposes only!
-
 This repository hosts an experiment implementation of a FreeStable stablecoin (version 0.2). The test uses a EUR-pegged version (FreeEUR), but it can be used for any currency.
 
 The concept description: https://github.com/FreeStable/freestable-concept 
@@ -39,7 +37,4 @@ Allow liqiudators to liquidate only part of a minter's collateral (meaning only 
 
 In case a liquidation is only possible after the collateralization ratio has already fallen below 100%, the liquidator could be compensated with governance tokens (up to the 100% ratio value).
 
-## TODO
-
-- liquidation function
-- additional tests for liquidations
+It might be good if there's a cap on how much of gov tokens can a liquidator receive as reward (for example, not more than 5% of total gov token supply).
